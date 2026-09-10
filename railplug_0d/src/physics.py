@@ -164,15 +164,45 @@ def plasma_resistivity(gas: ct.Solution, Te: float, ne: float, ne_floor: float =
 
 def electron_heavy_energy_exchange(gas: ct.Solution, Te: float, Tg: float, ne: float) -> float:
     """Elastic electron -> heavy-particle energy-relaxation power density
-    q_e->M [W/m^3] = sum_k (2 me/Mk) * nu_ek * 1.5 kB (Te - Tg) * ne."""
-    nu_ek = species_collision_frequencies(gas, Te)
-    Wk = gas.molecular_weights  # kg/kmol
-    mass_factor_sum = 0.0
-    for name, nu in nu_ek.items():
-        idx = gas.species_index(name)
-        Mk = Wk[idx] / AVOGADRO_PER_KMOL  # kg per molecule
-        mass_factor_sum += (2.0 * ME / Mk) * nu
-    return mass_factor_sum * 1.5 * KB * (Te - Tg) * ne
+    q_e->M [W/m^3] = (2*me/M_mean) * nu_en(Te) * 1.5*kB*(Te - Tg) * ne.
+
+    Regularized to use the mixture *mean* molecular weight M_mean in the
+    (2*me/Mk) elastic energy-transfer-fraction factor, rather than summing
+    that factor per-species (sum_k (2*me/Mk)*nu_ek, an earlier version of
+    this function). The per-species form has a genuine physical
+    justification in isolation (a light species really does absorb more
+    energy per elastic collision than a heavy one), but summed across
+    species it makes q_eM's *sensitivity to gas composition* scale with
+    1/Mk, so trace amounts of very light dissociation fragments (atomic H,
+    Mk ~1 g/mol, appearing e.g. as CH4/air heats past ~3000-4000 K) can
+    dominate the sum out of proportion to their actual heat capacity or
+    energy content. This was traced directly (see
+    simulations/debug_ch4_bifurcation.py, MODELING_NOTES.md's phi-sweep
+    follow-up) to an intrinsic positive-feedback runaway in
+    ExpansionCoupledReactor's uncapped CH4 phi-sweep: hotter -> more H/H2
+    dissociation -> larger sum_k(2*me/Mk)*nu_ek -> larger q_eM -> more
+    heating -- a ~20x q_eM disparity between two adjacent phi points that
+    no thermal-inertia or chemistry-side fix could address, because the
+    runaway lived entirely in this term. Using the bulk mean molecular
+    weight removes that per-species leverage while keeping the same
+    overall nu_en(Te) (total electron-neutral collision frequency, via
+    `collision_frequency`) and (Te-Tg) driving-temperature dependence.
+
+    Note: this only changes the mass-ratio weighting, not the sign
+    convention -- q_eM remains negative when Te < Tg (energy flowing
+    gas -> electrons), matching `species_collision_frequencies`'s and
+    `collision_frequency`'s existing behavior and this project's own
+    `tests/test_physics.py::test_energy_exchange_sign_follows_temperature_
+    difference`, which a naive `if Te <= Tg: return 0.0` early-out
+    (as an initial draft of this fix considered) would have silently
+    broken -- that guard was not applied.
+    """
+    if ne <= 0.0:
+        return 0.0
+    nu_en = collision_frequency(gas, Te)
+    M_mean = gas.mean_molecular_weight / AVOGADRO_PER_KMOL  # kg per mean molecule
+    mass_ratio_term = 2.0 * ME / M_mean
+    return mass_ratio_term * nu_en * 1.5 * KB * (Te - Tg) * ne
 
 
 # ---------------------------------------------------------------------------

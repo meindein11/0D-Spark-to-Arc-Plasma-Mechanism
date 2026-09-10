@@ -29,6 +29,7 @@ def to_dataframe(result: ReactorResult) -> pd.DataFrame:
 
     rho_res = np.empty(n_t)
     e_over_n_td = np.empty(n_t)
+    q_eM = np.empty(n_t)
     X = np.empty((n_t, n_sp))
 
     for i in range(n_t):
@@ -38,6 +39,12 @@ def to_dataframe(result: ReactorResult) -> pd.DataFrame:
         E = rho_res[i] * j
         n_tot = gas.density / gas.mean_molecular_weight * physics.AVOGADRO_PER_KMOL
         e_over_n_td[i] = (E / n_tot) / TOWNSEND
+        # Electron -> gas elastic energy-transfer rate [W/m^3]. This is what
+        # actually heats the *gas* (as opposed to rho_res*j^2, the power
+        # absorbed by the much smaller electron population) -- see
+        # radial_hydro.py, which reuses this profile as its Joule-heating
+        # source term rather than re-deriving an independent estimate.
+        q_eM[i] = physics.electron_heavy_energy_exchange(gas, result.Te[i], result.Tg[i], result.ne[i])
         X[i, :] = gas.X
 
     df = pd.DataFrame({
@@ -47,6 +54,7 @@ def to_dataframe(result: ReactorResult) -> pd.DataFrame:
         "ne": result.ne,
         "rho_res": rho_res,
         "E_over_N_Td": e_over_n_td,
+        "q_eM": q_eM,
     })
     for k, name in enumerate(result.species_names):
         df[f"X_{name}"] = X[:, k]

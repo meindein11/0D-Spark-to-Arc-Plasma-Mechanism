@@ -10,13 +10,23 @@ sign convention); this file explains how those gaps were filled and why.
 ## Usage
 
 ```
-pip install -r requirements.txt              # or requirements-dev.txt to also get pytest
-python simulations/run_methane.py            # CH4/Air, phi=0.5
-python simulations/run_ammonia.py            # NH3/Air, phi=0.7
-python simulations/compare.py                # both cases + comparison plots/summary in data/
-python simulations/run_channel_expansion.py  # 1D radial hydro channel-expansion demo
-pytest tests/                                # unit tests + a tolerance-convergence check
+pip install -r requirements.txt                       # or requirements-dev.txt to also get pytest
+python simulations/run_methane.py                      # CH4/Air, phi=0.5, capped model
+python simulations/run_ammonia.py                       # NH3/Air, phi=0.7, capped model
+python simulations/compare.py                           # both cases + comparison plots/summary in data/
+python simulations/run_channel_expansion.py             # 1D radial hydro channel-expansion demo
+python simulations/run_closed_loop_comparison.py         # uncapped, expansion-coupled model, both fuels
+python simulations/run_parametric_phi_sweep.py           # equivalence-ratio sweep (phi=0.4-1.2), both fuels
+python simulations/debug_ch4_bifurcation.py              # term-by-term CH4 phi=0.9 vs phi=1.0 diagnostic
+pytest tests/                                            # unit tests + a tolerance-convergence check
 ```
+
+The first four are the original, validated (hard 3000 K ceiling) model. The
+last three are the experimental, uncapped, expansion-coupled reactor and
+its diagnostics -- see "Uncapped, expansion-coupled reactor" below for why
+that model needed six additional numerical fixes and one real bug fix (a
+dissociation-driven feedback loop in `physics.py`'s electron-heating term)
+before it would run reliably.
 
 ## Mechanisms (`mechanisms/`)
 
